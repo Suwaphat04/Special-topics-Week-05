@@ -367,24 +367,41 @@ Memory analysis complete!
 
 | Memory Section | Variable/Function | Address (ที่แสดงออกมา) | Memory Type |
 |----------------|-------------------|----------------------|-------------|
-| Stack | stack_var | 0x_______ | SRAM |
-| Global SRAM | sram_buffer | 0x_______ | SRAM |
-| Flash | flash_string | 0x_______ | Flash |
-| Heap | heap_ptr | 0x_______ | SRAM |
+| Stack | stack_var | 0x3FFB4550 | SRAM |
+| Global SRAM | sram_buffer | 0x3FFB16BC | SRAM |
+| Flash | flash_string | 0x3F407DC8 | Flash |
+| Heap | heap_ptr | 0x3FFB526C | SRAM |
 
 **Table 2.2: Memory Usage Summary**
 
 | Memory Type | Free Size (bytes) | Total Size (bytes) |
 |-------------|-------------------|--------------------|
-| Internal SRAM | _________ | 520,192 |
+| Internal SRAM | 388,592 | 520,192 |
 | Flash Memory | _________ | varies |
-| DMA Memory | _________ | varies |
+| DMA Memory | 303,088 | varies |
 
 ### คำถามวิเคราะห์ (ง่าย)
 
 1. **Memory Types**: SRAM และ Flash Memory ใช้เก็บข้อมูลประเภทไหน?
+SRAM (Static RAM):
+ใช้เก็บตัวแปรที่ เปลี่ยนแปลงได้ ระหว่างการทำงานของโปรแกรม เช่น
+ตัวแปร global / local (stack, heap)
+ข้อมูลที่อ่าน–เขียนตลอดเวลา
+Flash Memory:
+ใช้เก็บข้อมูล ถาวร เช่น
+โค้ดโปรแกรม (text segment)
+ข้อความหรือค่าคงที่ (const, string literals)
+
 2. **Address Ranges**: ตัวแปรแต่ละประเภทอยู่ใน address range ไหน?
+ประเภทหน่วยความจำ	ตัวอย่าง Address	ช่วง Address โดยทั่วไป (ESP32)
+Stack / Heap / Global (SRAM)	0x3FFBxxxx	0x3FFB0000 – 0x3FFFFFFF
+Flash (Code, const)	0x3F40xxxx	0x3F400000 – 0x3F7FFFFF
+
 3. **Memory Usage**: ESP32 มี memory ทั้งหมดเท่าไร และใช้ไปเท่าไร?
+Total Internal SRAM: ≈ 520 KB
+Used: ≈ 132 KB
+Free: ≈ 388 KB
+Flash: ใช้เก็บโค้ดและข้อมูลคงที่ ประมาณ 40–50 KB (จากขนาด binary 0x28450 = 164,944 bytes ≈ 161 KB)
 
 ---
 
@@ -573,26 +590,31 @@ void app_main() {
 
 | Test Type | Memory Type | Time (μs) | Ratio vs Sequential |
 |-----------|-------------|-----------|-------------------|
-| Sequential | Internal SRAM | _______ | 1.00x |
-| Random | Internal SRAM | _______ | ____x |
-| Sequential | External Memory | _______ | ____x |
-| Random | External Memory | _______ | ____x |
+| Sequential | Internal SRAM | 230,639 | 1.00x |
+| Random | Internal SRAM | 320,305 | 1.39x |
+| Sequential | External Memory | 333,108 | 1.44x |
+| Random | External Memory | 409,965 | 1.77x |
 
 **Table 3.2: Stride Access Performance**
 
 | Stride Size | Time (μs) | Ratio vs Stride 1 |
 |-------------|-----------|------------------|
-| 1 | _______ | 1.00x |
-| 2 | _______ | ____x |
-| 4 | _______ | ____x |
-| 8 | _______ | ____x |
-| 16 | _______ | ____x |
+| 1 | 230,632 | 1.00x |
+| 2 | 115,344 | 0.50x |
+| 4 | 57,690 | 0.25x |
+| 8 | 28,875 | 0.13x |
+| 16 | 14,467 | 0.06x |
 
 ### คำถามวิเคราะห์
 
 1. **Cache Efficiency**: ทำไม sequential access เร็วกว่า random access?
+Cache Efficiency: Sequential access เร็วกว่าเพราะข้อมูลถูกดึงเข้ามาใน cache แบบต่อเนื่อง ลดการ miss ของ cache.
+
 2. **Memory Hierarchy**: ความแตกต่างระหว่าง internal SRAM และ external memory คืออะไร?
+Memory Hierarchy: Internal SRAM อยู่บนชิป เข้าถึงเร็วกว่า ส่วน External memory ผ่านบัส SPI จึงมี latency สูงกว่า.
+
 3. **Stride Patterns**: stride size ส่งผลต่อ performance อย่างไร?
+Stride Patterns: เมื่อ stride size ใหญ่ขึ้น การเข้าถึงหน่วยความจำลดลงต่อรอบ ทำให้เวลาเฉลี่ยต่อการอ่านน้อยลง.
 
 ---
 
@@ -819,25 +841,30 @@ void app_main() {
 
 | Metric | Core 0 (PRO_CPU) | Core 1 (APP_CPU) |
 |--------|-------------------|-------------------|
-| Total Iterations | _______ | _______ |
-| Average Time per Iteration (μs) | _______ | _______ |
-| Total Execution Time (ms) | _______ | _______ |
-| Task Completion Rate | _______ | _______ |
+| Total Iterations | 100 | 150 |
+| Average Time per Iteration (μs) | 72 μs | 9 778 μs |
+| Total Execution Time (ms) | ≈ 4 995 ms | ≈ 5 941 ms |
+| Task Completion Rate | 100 % (5 s) | 100 % (5.9 s) |
 
 **Table 4.2: Inter-Core Communication**
 
 | Metric | Value |
 |--------|-------|
-| Messages Sent | _______ |
-| Messages Received | _______ |
-| Average Latency (μs) | _______ |
-| Queue Overflow Count | _______ |
+| Messages Sent | 10 ข้อความ (0 → 90 ทุก 10 รอบ) |
+| Messages Received | 10 ข้อความ |
+| Average Latency (μs) | ≈ 13 500 μs (ค่าเฉลี่ยจาก 737 – 24 263 μs) |
+| Queue Overflow Count | 0 |
 
 ### คำถามวิเคราะห์
 
 1. **Core Specialization**: จากผลการทดลอง core ไหนเหมาะกับงานประเภทใด?
+Core Specialization: Core 0 เหมาะกับงาน I/O หรือ protocol เบา ๆ ส่วน Core 1 เหมาะกับงานคำนวณเชิงตัวเลขหรือ application processing.
+
 2. **Communication Overhead**: inter-core communication มี overhead เท่าไร?
+Communication Overhead: Inter-core communication มี overhead ประมาณ 13 ms ต่อข้อความ ถือว่าปานกลาง.
+
 3. **Load Balancing**: การกระจายงานระหว่าง cores มีประสิทธิภาพหรือไม่?
+Load Balancing: การกระจายงานค่อนข้างสมดุล เพราะ Core 1 ประมวลผลหนักกว่าแต่เสร็จใกล้ Core 0 ในเวลา รวม ใกล้เคียงกัน.
 
 ---
 
@@ -851,9 +878,9 @@ void app_main() {
 ### แบบฟอร์มส่งงาน
 
 **ข้อมูลนักศึกษา:**
-- ชื่อ: _________________________________
-- รหัสนักศึกษา: _______________________
-- วันที่ทำการทดลอง: ___________________
+- ชื่อ: น.ส.สุวพัชร สระศรีสม
+- รหัสนักศึกษา: 66030295
+- วันที่ทำการทดลอง: 24 ต.ค. 2568
 
 **Checklist การทดลอง:**
 - [ ] Environment setup สำเร็จ (ต่อเนื่องจากสัปดาห์ที่ 4)
